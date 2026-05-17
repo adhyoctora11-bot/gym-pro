@@ -5,7 +5,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
-const nodemailer = require('nodemailer');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -79,6 +78,7 @@ function requireSession(req) {
 async function sendScheduleEmail(memberEmail, memberName, trainerName, date, timeStart, timeEnd, type) {
   if (!memberEmail || !process.env.SMTP_USER || !process.env.SMTP_PASS) return;
   try {
+    const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
