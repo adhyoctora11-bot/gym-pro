@@ -1,0 +1,15 @@
+{
+  "name": "gym-pro",
+  "version": "1.0.0",
+  "description": "GYM PRO - Professional Gym Management System",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "cookie": "^0.6.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
