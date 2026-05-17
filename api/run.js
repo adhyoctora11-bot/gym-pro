@@ -90,24 +90,31 @@ async function sendScheduleEmail(memberEmail, memberName, trainerName, date, tim
       to: memberEmail,
       subject: `[GYM PRO] Jadwal Latihan Baru – ${date}`,
       html: `
-        <div style="font-family:sans-serif;max-width:500px;margin:auto;background:#1a1a2e;color:#e0e0e0;border-radius:12px;overflow:hidden;">
-          <div style="background:#6c63ff;padding:24px;text-align:center;">
-            <h1 style="margin:0;color:#fff;font-size:22px;">GYM PRO</h1>
-            <p style="margin:4px 0 0;color:#d0ccff;font-size:13px;">Jadwal Latihan Baru</p>
+        <div style="font-family:sans-serif;max-width:520px;margin:auto;background:#1a1a2e;color:#e0e0e0;border-radius:12px;overflow:hidden;">
+          <div style="background:linear-gradient(135deg,#6c63ff,#48c4e5);padding:28px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:24px;letter-spacing:2px;">GYM PRO</h1>
+            <p style="margin:6px 0 0;color:#d0f0ff;font-size:13px;">Jadwal Latihan Baru</p>
           </div>
           <div style="padding:28px;">
-            <p>Halo, <strong>${memberName}</strong>!</p>
-            <p>Jadwal latihan baru telah ditetapkan untuk Anda:</p>
-            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-              <tr><td style="padding:8px 0;color:#aaa;">Tanggal</td><td style="padding:8px 0;font-weight:bold;">${date}</td></tr>
-              <tr><td style="padding:8px 0;color:#aaa;">Waktu</td><td style="padding:8px 0;font-weight:bold;">${timeStart} – ${timeEnd}</td></tr>
-              <tr><td style="padding:8px 0;color:#aaa;">Jenis</td><td style="padding:8px 0;font-weight:bold;">${type}</td></tr>
-              <tr><td style="padding:8px 0;color:#aaa;">Trainer</td><td style="padding:8px 0;font-weight:bold;">${trainerName}</td></tr>
-            </table>
-            <p style="color:#aaa;font-size:13px;">Hadir tepat waktu dan semangat berlatih!</p>
+            <p style="font-size:15px;">Halo, <strong>${memberName}</strong>!</p>
+            <p style="color:#aaa;font-size:13px;">Jadwal latihan baru telah ditetapkan untuk Anda:</p>
+            <div style="background:#111128;border-radius:10px;padding:16px;margin:16px 0;">
+              <table style="width:100%;border-collapse:collapse;">
+                <tr><td style="padding:7px 0;color:#8899aa;font-size:12px;width:40%">📅 Tanggal</td><td style="padding:7px 0;font-weight:600;font-size:13px;">${date}</td></tr>
+                <tr><td style="padding:7px 0;color:#8899aa;font-size:12px;">⏰ Waktu</td><td style="padding:7px 0;font-weight:600;font-size:13px;">${timeStart} – ${timeEnd}</td></tr>
+                <tr><td style="padding:7px 0;color:#8899aa;font-size:12px;">🏋️ Jenis</td><td style="padding:7px 0;font-weight:600;font-size:13px;">${type}</td></tr>
+                <tr><td style="padding:7px 0;color:#8899aa;font-size:12px;">👤 Trainer</td><td style="padding:7px 0;font-weight:600;font-size:13px;">${trainerName}</td></tr>
+              </table>
+            </div>
+            <div style="text-align:center;margin:24px 0 8px;">
+              <p style="color:#aaa;font-size:12px;margin-bottom:12px;">Tunjukkan QR Code ini saat datang ke gym untuk scan kehadiran:</p>
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${memberEmail}&bgcolor=1a1a2e&color=6c63ff&margin=10" alt="QR Code Member" style="border-radius:10px;border:2px solid #6c63ff;" />
+              <p style="color:#6c63ff;font-size:11px;margin-top:8px;letter-spacing:1px;">${memberEmail}</p>
+            </div>
+            <p style="color:#aaa;font-size:12px;text-align:center;">Simpan email ini dan tunjukkan QR code kepada petugas gym saat datang.</p>
           </div>
-          <div style="padding:16px 28px;background:#111128;text-align:center;font-size:12px;color:#666;">
-            © ${new Date().getFullYear()} GYM PRO – Management System
+          <div style="padding:16px 28px;background:#111128;text-align:center;font-size:11px;color:#556677;">
+            © ${new Date().getFullYear()} GYM PRO – Professional Gym Management System
           </div>
         </div>`
     });
@@ -635,6 +642,62 @@ async function getReportData(req, res, period) {
   };
 }
 
+// ── Attendance ─────────────────────────────
+
+async function recordAttendance(req, res, memberId) {
+  const session = requireSession(req);
+  const memberR = await supabase.from('members').select('id,name,status').eq('id', memberId).single();
+  if (!memberR.data) throw new Error('Member tidak ditemukan');
+  const id = genId('ATT');
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('attendance').insert({
+    id, member_id: memberId, visited_at: now, scan_method: 'barcode', created_at: now
+  });
+  if (error) throw new Error(error.message);
+  await logAct(session, 'SCAN_MEMBER', `Scan kehadiran: ${memberR.data.name}`);
+  return { success: true, member: memberR.data, visitedAt: now };
+}
+
+async function getAttendance(req, res, memberId, limit) {
+  requireSession(req);
+  let query = supabase.from('attendance')
+    .select('id,member_id,visited_at,scan_method')
+    .order('visited_at', { ascending: false })
+    .limit(parseInt(limit) || 100);
+  if (memberId) query = query.eq('member_id', memberId);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  // Enrich with member names
+  const memberIds = [...new Set((data || []).map(a => a.member_id))];
+  const membersR = memberIds.length ? await supabase.from('members').select('id,name').in('id', memberIds) : { data: [] };
+  const nameMap = {};
+  (membersR.data || []).forEach(m => { nameMap[m.id] = m.name; });
+  return (data || []).map(a => ({
+    id: a.id, memberId: a.member_id, memberName: nameMap[a.member_id] || '-',
+    visitedAt: a.visited_at, scanMethod: a.scan_method
+  }));
+}
+
+async function getAttendanceSummary(req, res) {
+  requireSession(req);
+  const [membersR, attendR] = await Promise.all([
+    supabase.from('members').select('id,name,membership_type,status'),
+    supabase.from('attendance').select('member_id,visited_at').order('visited_at', { ascending: false })
+  ]);
+  const members = membersR.data || [];
+  const attend = attendR.data || [];
+  const grouped = {};
+  attend.forEach(a => {
+    if (!grouped[a.member_id]) grouped[a.member_id] = [];
+    grouped[a.member_id].push(a.visited_at);
+  });
+  return members.map(m => ({
+    id: m.id, name: m.name, membershipType: m.membership_type, status: m.status,
+    totalVisits: (grouped[m.id] || []).length,
+    lastVisit: (grouped[m.id] || [])[0] || null
+  }));
+}
+
 // ── Profile ────────────────────────────────
 
 async function getProfile(req, res) {
@@ -667,7 +730,8 @@ const FUNCTIONS = {
   getUsers, addUser, updateUser, deleteUser,
   getActivityLog, getNotifications, markNotifRead,
   getReportData,
-  getProfile, updateProfile
+  getProfile, updateProfile,
+  recordAttendance, getAttendance, getAttendanceSummary
 };
 
 // ── Main Handler ───────────────────────────

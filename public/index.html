@@ -13,6 +13,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{--primary:#00e676;--primary-dark:#00c853;--secondary:#448aff;--warning:#ffab40;--danger:#ff5252;--bg-primary:#0a0e13;--bg-secondary:#111820;--bg-card:#151d28;--border:#2a3444;--text-primary:#e8edf4;--text-secondary:#8899aa;--text-muted:#556677;--shadow-sm:0 2px 8px rgba(0,0,0,.2);--shadow-md:0 4px 16px rgba(0,0,0,.3);--shadow-lg:0 8px 32px rgba(0,0,0,.4);--shadow-glow:0 0 20px rgba(0,230,118,.15);--radius-sm:8px;--radius-md:12px;--radius-lg:16px;--transition-fast:.2s cubic-bezier(.4,0,.2,1);--transition-smooth:.3s cubic-bezier(.4,0,.2,1);--transition-bounce:.5s cubic-bezier(.68,-.55,.265,1.55)}
 *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}
@@ -380,6 +381,7 @@ var MN=[
   {id:'reports',ic:'fa-chart-bar',mi:'fa-chart-line',lb:'Laporan',cl:'#bc8cff',rl:['Admin','Supervisor','Manager']},
   {id:'logs',ic:'fa-history',mi:'fa-clipboard-list',lb:'Log',cl:'#8899aa',rl:['Admin','Manager']},
   {id:'users',ic:'fa-user-cog',mi:'fa-users-cog',lb:'Pengguna',cl:'#ff6e6e',rl:['Admin','Manager']},
+  {id:'scan',ic:'fa-qrcode',mi:'fa-qrcode',lb:'Scan Member',cl:'#00bcd4',rl:['Cashier','Admin','Supervisor','Manager']},
   {id:'profile',ic:'fa-user-circle',mi:'fa-user-circle',lb:'Profil',cl:'#ffab40',rl:['User','Cashier','Admin','Supervisor','Manager']}
 ];
 function bldNav(){
@@ -407,7 +409,7 @@ function nav(p){
   S.p=p; bldNav();
   var m=MN.find(x=>x.id===p);
   document.getElementById('tbTi').textContent=m?m.lb:'';
-  var sub={dashboard:'Selamat datang di dashboard',members:'Kelola data member',schedules:'Jadwal personal training',finance:'Manajemen arus kas',payments:'Catatan pembayaran',reports:'Laporan & analitik',logs:'Aktivitas sistem',users:'Manajemen pengguna',profile:'Pengaturan profil'};
+  var sub={dashboard:'Selamat datang di dashboard',members:'Kelola data member',schedules:'Jadwal personal training',finance:'Manajemen arus kas',payments:'Catatan pembayaran',reports:'Laporan & analitik',logs:'Aktivitas sistem',users:'Manajemen pengguna',scan:'Scan kehadiran & QR Code member',profile:'Pengaturan profil'};
   document.getElementById('tbSu').textContent=sub[p]||'';
   rdrPg(p); if(mob())togSB(false);
 }
@@ -449,7 +451,7 @@ async function mkRd(id){try{await gs('markNotifRead',id);ldNf();}catch(e){}}
 function rdrPg(p){
   S.ch.forEach(c=>{try{c.destroy();}catch(e){}});S.ch=[];
   document.getElementById('pgC').innerHTML='<div style="display:flex;justify-content:center;align-items:center;min-height:200px"><div class="loader"></div></div>';
-  var R={dashboard:rdrDash,members:rdrMem,schedules:rdrSch,finance:rdrFin,payments:rdrPay,reports:rdrRpt,logs:rdrLog,users:rdrUsr,profile:rdrPrf};
+  var R={dashboard:rdrDash,members:rdrMem,schedules:rdrSch,finance:rdrFin,payments:rdrPay,reports:rdrRpt,logs:rdrLog,users:rdrUsr,scan:rdrScan,profile:rdrPrf};
   if(R[p])setTimeout(()=>R[p](),80);
 }
 
@@ -936,6 +938,139 @@ async function svUsr(id){
   try{var r=id?await gs('updateUser',id,data):await gs('addUser',data);if(r.success){toast(id?'Pengguna diperbarui':'Pengguna ditambahkan','s');clMd();rdrUsr();}else toast(r.message||'Gagal','e');}catch(e){toast(e.message,'e');}
 }
 function delUsr(id,username){opMd('Hapus Pengguna',`<p style="color:#8899aa">Yakin hapus pengguna <strong style="color:#e8edf4">@${username}</strong>?</p>`,`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="bs r" onclick="cnfDel('deleteUser','${id}','rdrUsr')"><i class="fas fa-trash"></i> Hapus</button>`);}
+
+// ── SCAN MEMBER ────────────────────────────
+var _scanTab='recent';
+async function rdrScan(){
+  try{
+    var c=document.getElementById('pgC');
+    c.innerHTML=`
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+        <div class="cc" style="text-align:center">
+          <h3 style="margin-bottom:16px"><i class="fas fa-qrcode" style="color:#00bcd4;margin-right:6px"></i>Scan Kehadiran Member</h3>
+          <div style="background:#111128;border:2px dashed #00bcd4;border-radius:14px;padding:28px 20px;margin-bottom:16px">
+            <i class="fas fa-qrcode" style="font-size:52px;color:#00bcd4;opacity:.7;display:block;margin-bottom:12px"></i>
+            <p style="color:#8899aa;font-size:12px;margin-bottom:14px">Arahkan scanner ke barcode/QR member<br>atau ketik ID Member lalu tekan Enter</p>
+            <input id="scanInp" type="text" class="fi" placeholder="Scan atau ketik ID Member (contoh: MBR001)" style="font-size:15px;text-align:center;letter-spacing:2px;text-transform:uppercase" onkeydown="if(event.key==='Enter')doScan()" autocomplete="off" />
+            <button class="btn" onclick="doScan()" style="width:100%;margin-top:10px;background:#00bcd4;font-size:13px"><i class="fas fa-sign-in-alt"></i> Rekam Kehadiran</button>
+          </div>
+          <div id="scanRes"></div>
+        </div>
+        <div class="cc">
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <button class="bs ${_scanTab==='recent'?'g':''}" onclick="setScanTab('recent')" style="font-size:11px">Kunjungan Terbaru</button>
+            <button class="bs ${_scanTab==='qr'?'g':''}" onclick="setScanTab('qr')" style="font-size:11px">QR Code Member</button>
+          </div>
+          <div id="scanTabC"><div style="text-align:center;padding:20px"><div class="loader"></div></div></div>
+        </div>
+      </div>`;
+    setTimeout(()=>{
+      var inp=document.getElementById('scanInp');
+      if(inp)inp.focus();
+    },150);
+    ldScanTab();
+  }catch(e){errPg(e.message);}
+}
+
+function setScanTab(t){
+  _scanTab=t;
+  document.querySelectorAll('.cc .bs').forEach(b=>{
+    var isG=b.textContent.trim().startsWith(t==='recent'?'Kunjungan':'QR');
+    b.className='bs '+(isG?'g':'');
+  });
+  ldScanTab();
+}
+
+async function ldScanTab(){
+  var tc=document.getElementById('scanTabC');
+  if(!tc)return;
+  tc.innerHTML='<div style="text-align:center;padding:20px"><div class="loader"></div></div>';
+  try{
+    if(_scanTab==='recent'){
+      var att=await gs('getAttendance','',50);
+      if(!att.length){tc.innerHTML='<div class="es"><i class="fas fa-clipboard-list"></i><p>Belum ada kunjungan tercatat</p></div>';return;}
+      tc.innerHTML='<div style="max-height:420px;overflow-y:auto">'+att.map(a=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(42,52,68,.3)">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(0,188,212,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="fas fa-user-check" style="color:#00bcd4;font-size:13px"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600">${a.memberName}</div>
+            <div style="font-size:10px;color:#8899aa">${a.memberId}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;font-weight:600;color:#00bcd4">${new Date(a.visitedAt).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}</div>
+            <div style="font-size:10px;color:#8899aa">${new Date(a.visitedAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+        </div>`).join('')+'</div>';
+    } else {
+      var members=await gs('getAttendanceSummary');
+      if(!members.length){tc.innerHTML='<div class="es"><i class="fas fa-users"></i><p>Tidak ada data member</p></div>';return;}
+      tc.innerHTML='<div style="max-height:420px;overflow-y:auto"><div class="grid grid-cols-2 gap-2">'+members.map(m=>`
+        <div style="background:#111128;border-radius:10px;padding:12px;text-align:center;cursor:pointer" onclick="showQr('${m.id}','${m.name}')">
+          <div id="qr_${m.id}" style="display:inline-block;margin-bottom:6px"></div>
+          <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+          <div style="font-size:9px;color:#8899aa">${m.id}</div>
+          <div style="font-size:9px;color:#00bcd4;margin-top:2px">${m.totalVisits} kunjungan</div>
+        </div>`).join('')+'</div></div>';
+      setTimeout(()=>{
+        members.forEach(m=>{
+          var el=document.getElementById('qr_'+m.id);
+          if(el&&typeof QRCode!=='undefined'){
+            new QRCode(el,{text:m.id,width:80,height:80,colorDark:'#6c63ff',colorLight:'#111128',correctLevel:QRCode.CorrectLevel.M});
+          }
+        });
+      },100);
+    }
+  }catch(e){tc.innerHTML='<div class="es"><p>'+e.message+'</p></div>';}
+}
+
+async function doScan(){
+  var inp=document.getElementById('scanInp');
+  if(!inp)return;
+  var memberId=inp.value.trim().toUpperCase();
+  if(!memberId){toast('Masukkan ID Member','w');return;}
+  var res=document.getElementById('scanRes');
+  res.innerHTML='<div style="text-align:center;padding:12px"><div class="loader"></div></div>';
+  try{
+    var r=await gs('recordAttendance',memberId);
+    var m=r.member;
+    var now=new Date(r.visitedAt);
+    var dateStr=now.toLocaleDateString('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+    var timeStr=now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    res.innerHTML=`
+      <div style="background:linear-gradient(135deg,rgba(0,188,212,.15),rgba(108,99,255,.15));border:1px solid #00bcd4;border-radius:12px;padding:20px;animation:fadeIn .3s ease">
+        <div style="font-size:32px;margin-bottom:8px">✅</div>
+        <div style="font-size:18px;font-weight:700;color:#00bcd4">${m.name}</div>
+        <div style="font-size:12px;color:#8899aa;margin:4px 0">${m.id} • ${m.status||'Active'}</div>
+        <div style="font-size:13px;margin-top:12px;color:#e0e0e0">${dateStr}</div>
+        <div style="font-size:22px;font-weight:700;color:#00e676;letter-spacing:2px">${timeStr}</div>
+        <div style="font-size:11px;color:#8899aa;margin-top:8px">Kehadiran berhasil direkam</div>
+      </div>`;
+    inp.value='';
+    inp.focus();
+    toast('Kehadiran '+m.name+' direkam!','s');
+    if(_scanTab==='recent')setTimeout(ldScanTab,800);
+  }catch(e){
+    res.innerHTML=`<div style="background:rgba(255,82,82,.1);border:1px solid #ff5252;border-radius:12px;padding:20px"><div style="font-size:28px">❌</div><div style="color:#ff5252;font-weight:600;margin-top:8px">${e.message}</div></div>`;
+    inp.select();
+    toast(e.message,'e');
+  }
+}
+
+function showQr(memberId, memberName){
+  var h=`<div style="text-align:center;padding:16px">
+    <div id="qrModal" style="display:inline-block;margin-bottom:12px"></div>
+    <div style="font-size:16px;font-weight:700">${memberName}</div>
+    <div style="font-size:12px;color:#8899aa;margin:4px 0">${memberId}</div>
+    <p style="font-size:11px;color:#556677;margin-top:8px">Scan QR ini untuk rekam kehadiran</p>
+  </div>`;
+  opMd('QR Code - '+memberName,h);
+  setTimeout(()=>{
+    var el=document.getElementById('qrModal');
+    if(el&&typeof QRCode!=='undefined')new QRCode(el,{text:memberId,width:180,height:180,colorDark:'#6c63ff',colorLight:'#1a1a2e',correctLevel:QRCode.CorrectLevel.H});
+  },100);
+}
 
 // ── PROFILE ────────────────────────────────
 async function rdrPrf(){
