@@ -5,6 +5,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
+const nodemailer = require('nodemailer');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -73,6 +74,44 @@ function requireSession(req) {
   const s = getSession(req);
   if (!s) throw new Error('Sesi tidak valid. Silakan login kembali.');
   return s;
+}
+
+async function sendScheduleEmail(memberEmail, memberName, trainerName, date, timeStart, timeEnd, type) {
+  if (!memberEmail || !process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    await transporter.sendMail({
+      from: `"GYM PRO" <${process.env.SMTP_USER}>`,
+      to: memberEmail,
+      subject: `[GYM PRO] Jadwal Latihan Baru – ${date}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:500px;margin:auto;background:#1a1a2e;color:#e0e0e0;border-radius:12px;overflow:hidden;">
+          <div style="background:#6c63ff;padding:24px;text-align:center;">
+            <h1 style="margin:0;color:#fff;font-size:22px;">GYM PRO</h1>
+            <p style="margin:4px 0 0;color:#d0ccff;font-size:13px;">Jadwal Latihan Baru</p>
+          </div>
+          <div style="padding:28px;">
+            <p>Halo, <strong>${memberName}</strong>!</p>
+            <p>Jadwal latihan baru telah ditetapkan untuk Anda:</p>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+              <tr><td style="padding:8px 0;color:#aaa;">Tanggal</td><td style="padding:8px 0;font-weight:bold;">${date}</td></tr>
+              <tr><td style="padding:8px 0;color:#aaa;">Waktu</td><td style="padding:8px 0;font-weight:bold;">${timeStart} – ${timeEnd}</td></tr>
+              <tr><td style="padding:8px 0;color:#aaa;">Jenis</td><td style="padding:8px 0;font-weight:bold;">${type}</td></tr>
+              <tr><td style="padding:8px 0;color:#aaa;">Trainer</td><td style="padding:8px 0;font-weight:bold;">${trainerName}</td></tr>
+            </table>
+            <p style="color:#aaa;font-size:13px;">Hadir tepat waktu dan semangat berlatih!</p>
+          </div>
+          <div style="padding:16px 28px;background:#111128;text-align:center;font-size:12px;color:#666;">
+            © ${new Date().getFullYear()} GYM PRO – Management System
+          </div>
+        </div>`
+    });
+  } catch (e) { /* email errors are non-fatal */ }
 }
 
 // ── Auth ───────────────────────────────────
@@ -320,14 +359,23 @@ async function addSchedule(req, res, data) {
   });
   if (error) throw new Error(error.message);
 
-  const memberR = await supabase.from('members').select('name').eq('id', data.memberId).single();
+  const [memberR, trainerR] = await Promise.all([
+    supabase.from('members').select('name,email').eq('id', data.memberId).single(),
+    supabase.from('trainers').select('name').eq('id', data.trainerId).single()
+  ]);
   const memberName = memberR.data?.name || '';
+  const memberEmail = memberR.data?.email || '';
+  const trainerName = trainerR.data?.name || '';
+
   await supabase.from('notifications').insert({
     id: genId('NTF'), user_id: 'all',
     title: `Jadwal Baru: ${memberName}`,
     message: `Latihan pada ${data.date} pukul ${data.timeStart}–${data.timeEnd} (${data.type})`,
     type: 'schedule', priority: 'normal', read: false, created_at: new Date().toISOString()
   });
+
+  sendScheduleEmail(memberEmail, memberName, trainerName, data.date, data.timeStart, data.timeEnd, data.type);
+
   await logAct(session, 'ADD_SCHEDULE', `Tambah jadwal: ${memberName} tgl ${data.date}`);
   return { success: true, id };
 }
