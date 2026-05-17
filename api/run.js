@@ -80,11 +80,13 @@ async function sendScheduleEmail(memberEmail, memberName, trainerName, date, tim
   try {
     const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
       secure: false,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      tls: { rejectUnauthorized: false }
     });
+    await transporter.verify();
     await transporter.sendMail({
       from: `"GYM PRO" <${process.env.SMTP_USER}>`,
       to: memberEmail,
@@ -118,7 +120,9 @@ async function sendScheduleEmail(memberEmail, memberName, trainerName, date, tim
           </div>
         </div>`
     });
-  } catch (e) { /* email errors are non-fatal */ }
+  } catch (e) {
+    console.error('[GYM PRO EMAIL ERROR]', e.message, e.code || '');
+  }
 }
 
 // ── Auth ───────────────────────────────────

@@ -80,11 +80,30 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .bs.r:hover{background:rgba(255,82,82,.15)}
 .ba{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:var(--bg-primary);border:none;border-radius:var(--radius-sm);padding:10px 20px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all var(--transition-smooth);display:inline-flex;align-items:center;gap:6px;min-height:40px}
 .ba:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,230,118,.25)}
-/* Toast */
-.tc{position:fixed;top:16px;right:16px;z-index:200;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:none}
-.tt{padding:14px 20px;border-radius:var(--radius-md);font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;max-width:380px;border:1px solid;backdrop-filter:blur(20px);pointer-events:auto;box-shadow:var(--shadow-lg)}
-.tt.s{background:rgba(0,230,118,.12);border-color:rgba(0,230,118,.25);color:var(--primary)}
-.tt.e{background:rgba(255,82,82,.12);border-color:rgba(255,82,82,.25);color:var(--danger)}
+/* Notification System */
+.tc{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:none;max-width:380px}
+.ntf{pointer-events:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:14px 44px 18px 14px;display:flex;align-items:flex-start;gap:12px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);overflow:hidden;position:relative}
+.ntf-ic{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px}
+.ntf-bd{flex:1;min-width:0}
+.ntf-ti{font-size:13px;font-weight:700;letter-spacing:.2px}
+.ntf-ms{font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
+.ntf-cl{position:absolute;top:10px;right:10px;background:rgba(255,255,255,.07);border:none;color:var(--text-secondary);cursor:pointer;width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;transition:.2s}
+.ntf-cl:hover{background:rgba(255,255,255,.14);color:var(--text-primary)}
+.ntf-bar{position:absolute;bottom:0;left:0;height:3px;width:100%;transform-origin:left}
+.ntf-s .ntf-ic{background:rgba(0,230,118,.15);color:#00e676}.ntf-s .ntf-ti{color:#00e676}.ntf-s .ntf-bar{background:#00e676}
+.ntf-e .ntf-ic{background:rgba(255,82,82,.15);color:#ff5252}.ntf-e .ntf-ti{color:#ff5252}.ntf-e .ntf-bar{background:#ff5252}
+.ntf-w .ntf-ic{background:rgba(255,171,64,.15);color:#ffab40}.ntf-w .ntf-ti{color:#ffab40}.ntf-w .ntf-bar{background:#ffab40}
+.ntf-i .ntf-ic{background:rgba(68,138,255,.15);color:#448aff}.ntf-i .ntf-ti{color:#448aff}.ntf-i .ntf-bar{background:#448aff}
+/* Button spinner */
+button.ld{opacity:.75;cursor:wait;pointer-events:none}
+/* Confirm dialog */
+.cfm-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(6px)}
+.cfm-ov.sh{display:flex}
+.cfm-bx{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:28px;max-width:380px;width:100%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6)}
+.cfm-ic{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px}
+.cfm-ti{font-size:16px;font-weight:700;margin-bottom:8px}
+.cfm-ms{font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:20px}
+.cfm-ac{display:flex;gap:10px;justify-content:center}
 /* Modal */
 .mo{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
 .mo.sh{display:flex}
@@ -270,6 +289,7 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 </div>
 
 <div class="tc" id="ttC"></div>
+<div class="cfm-ov" id="cfmOv" onclick="if(event.target===this)clCfm()"></div>
 
 <script>
 // ============================================
@@ -314,16 +334,84 @@ function errPg(msg) {
   document.getElementById('pgC').innerHTML = '<div class="es"><i class="fas fa-exclamation-triangle" style="font-size:36px;color:#ff5252"></i><p>'+msg+'</p></div>';
 }
 
-// Toast
-function toast(m, t) {
-  var c = document.getElementById('ttC');
-  var el = document.createElement('div');
-  el.className = 'tt '+(t||'e');
-  el.innerHTML = '<i class="fas '+(t==='s'?'fa-check-circle':'fa-exclamation-circle')+'"></i><span>'+m+'</span>';
+// ── Notification System ────────────────────
+var _ntfIc={s:'fa-check-circle',e:'fa-times-circle',w:'fa-exclamation-triangle',i:'fa-info-circle'};
+var _ntfLb={s:'Berhasil',e:'Gagal',w:'Perhatian',i:'Info'};
+function notify(t,title,msg){
+  var c=document.getElementById('ttC');
+  var el=document.createElement('div');
+  el.className='ntf ntf-'+(t||'i');
+  el.innerHTML=`<div class="ntf-ic"><i class="fas ${_ntfIc[t]||_ntfIc.i}"></i></div><div class="ntf-bd"><div class="ntf-ti">${title}</div>${msg?`<div class="ntf-ms">${msg}</div>`:''}</div><button class="ntf-cl" onclick="this.closest('.ntf').remove()"><i class="fas fa-times"></i></button><div class="ntf-bar"></div>`;
   c.appendChild(el);
-  gsap.fromTo(el,{opacity:0,y:-20,scale:.9},{opacity:1,y:0,scale:1,duration:.3,ease:'back.out(1.7)'});
-  setTimeout(()=>{gsap.to(el,{opacity:0,y:-20,scale:.9,duration:.25,onComplete:()=>el.remove()});},3500);
+  gsap.fromTo(el,{opacity:0,x:60,scale:.9},{opacity:1,x:0,scale:1,duration:.35,ease:'back.out(1.5)'});
+  var bar=el.querySelector('.ntf-bar');
+  var dur=t==='e'?6:4;
+  gsap.to(bar,{scaleX:0,duration:dur,ease:'none',transformOrigin:'left',onComplete:()=>{
+    gsap.to(el,{opacity:0,x:60,scale:.9,duration:.25,onComplete:()=>el.remove()});
+  }});
 }
+function toast(m,t){
+  var map={s:'s',e:'e',w:'w',i:'i'};
+  var titles={s:'Berhasil',e:'Gagal',w:'Perhatian',i:'Info'};
+  notify(map[t]||'e', titles[t]||'Gagal', m);
+}
+
+// ── Confirm Dialog ─────────────────────────
+function confirmAct(opts){
+  // opts: {icon, color, title, msg, label, danger, onConfirm}
+  var ic=opts.icon||'fa-question-circle';
+  var col=opts.danger?'rgba(255,82,82,.15)':'rgba(108,99,255,.15)';
+  var icol=opts.danger?'#ff5252':'#6c63ff';
+  var lbl=opts.label||'Ya, Lanjutkan';
+  var btnCls=opts.danger?'btn':(opts.btnCls||'btn');
+  var btnSt=opts.danger?'background:#ff5252':'';
+  document.getElementById('cfmOv').innerHTML=`
+    <div class="cfm-bx">
+      <div class="cfm-ic" style="background:${col};color:${icol}"><i class="fas ${ic}"></i></div>
+      <div class="cfm-ti">${opts.title||'Konfirmasi'}</div>
+      <div class="cfm-ms">${opts.msg||'Apakah Anda yakin?'}</div>
+      <div class="cfm-ac">
+        <button class="bs" onclick="clCfm()">Batal</button>
+        <button class="${btnCls}" style="${btnSt}" onclick="clCfm();(${opts.onConfirm.toString()})()">
+          <i class="fas ${ic}"></i> ${lbl}
+        </button>
+      </div>
+    </div>`;
+  var ov=document.getElementById('cfmOv');
+  ov.classList.add('sh');
+  gsap.fromTo(ov.querySelector('.cfm-bx'),{opacity:0,y:30,scale:.92},{opacity:1,y:0,scale:1,duration:.3,ease:'back.out(1.5)'});
+}
+function clCfm(){
+  var ov=document.getElementById('cfmOv');
+  gsap.to(ov.querySelector('.cfm-bx'),{opacity:0,y:20,scale:.95,duration:.2,onComplete:()=>ov.classList.remove('sh')});
+}
+
+// ── Button Spinner ─────────────────────────
+(function(){
+  var _map=new WeakMap();
+  document.addEventListener('click',function(e){
+    var btn=e.target.closest('button');
+    if(!btn||btn.classList.contains('ntf-cl')||btn.classList.contains('no-spin')||btn.disabled)return;
+    if(!btn.getAttribute('onclick')&&!btn.form)return;
+    if(_map.has(btn))return;
+    var orig=btn.innerHTML;
+    var ow=Math.max(btn.offsetWidth,36);
+    btn.style.minWidth=ow+'px';
+    btn.innerHTML='<i class="fas fa-spinner fa-spin" style="font-size:12px"></i>';
+    btn.classList.add('ld');
+    btn.disabled=true;
+    var t=setTimeout(()=>{
+      _map.delete(btn);
+      btn.innerHTML=orig;btn.classList.remove('ld');btn.disabled=false;btn.style.minWidth='';
+    },4000);
+    _map.set(btn,{orig,t});
+    // Reset when page re-renders
+    var obs=new MutationObserver(()=>{
+      if(!document.body.contains(btn)){clearTimeout(t);_map.delete(btn);obs.disconnect();}
+    });
+    obs.observe(document.body,{childList:true,subtree:true});
+  },true);
+})();
 
 // Modal
 function opMd(t, b, f) {
@@ -556,11 +644,11 @@ async function addMem(){if(!window._trn)window._trn=await gs('getTrainers');opMd
 async function editMem(id){var m=(window._md||[]).find(x=>x.id===id);if(!m)return;if(!window._trn)window._trn=await gs('getTrainers');opMd('Edit Member',memForm(m),`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="ba" onclick="svMem('${id}')"><i class="fas fa-save"></i> Simpan</button>`);}
 async function svMem(id){
   var data={name:document.getElementById('mfNm')?.value?.trim(),email:document.getElementById('mfEm')?.value?.trim(),phone:document.getElementById('mfPh')?.value?.trim(),address:document.getElementById('mfAd')?.value?.trim(),membershipType:document.getElementById('mfMt')?.value,trainerId:document.getElementById('mfTr')?.value,startDate:document.getElementById('mfSd')?.value,endDate:document.getElementById('mfEd')?.value,status:document.getElementById('mfSt')?.value||'Active'};
-  if(!data.name){toast('Nama wajib diisi','e');return;}
-  try{var r=id?await gs('updateMember',id,data):await gs('addMember',data);if(r.success){toast(id?'Member diperbarui':'Member ditambahkan','s');clMd();rdrMem();}else toast(r.message||'Gagal','e');}catch(e){toast(e.message,'e');}
+  if(!data.name){notify('w','Validasi','Nama member wajib diisi');return;}
+  try{var r=id?await gs('updateMember',id,data):await gs('addMember',data);if(r.success){notify('s',id?'Member Diperbarui':'Member Ditambahkan',data.name+' berhasil '+(id?'diperbarui':'ditambahkan'));clMd();rdrMem();}else notify('e','Gagal',r.message||'Terjadi kesalahan');}catch(e){notify('e','Error',e.message);}
 }
-function delMem(id,name){opMd('Hapus Member',`<p style="color:#8899aa">Yakin hapus member <strong style="color:#e8edf4">${name}</strong>?</p><p style="font-size:11px;color:#ff5252;margin-top:8px">Tindakan ini tidak dapat dibatalkan.</p>`,`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="bs r" onclick="cnfDel('deleteMember','${id}','rdrMem')"><i class="fas fa-trash"></i> Hapus</button>`);}
-async function cnfDel(fn,id,reload){try{var r=await gs(fn,id);if(r.success){toast('Berhasil dihapus','s');clMd();if(window[reload])window[reload]();}else toast(r.message||'Gagal','e');}catch(e){toast(e.message,'e');}}
+function delMem(id,name){confirmAct({icon:'fa-user-times',danger:true,title:'Hapus Member',msg:`Yakin ingin menghapus member <strong>${name}</strong>?<br><span style="font-size:11px;opacity:.7">Data jadwal terkait akan ikut terhapus.</span>`,label:'Ya, Hapus',onConfirm:async function(){try{var r=await gs('deleteMember',id);if(r.success){notify('s','Member Dihapus',name+' telah dihapus dari sistem');rdrMem();}else notify('e','Gagal',r.message);}catch(e){notify('e','Error',e.message);}}});}
+async function cnfDel(fn,id,reload){try{var r=await gs(fn,id);if(r.success){notify('s','Berhasil Dihapus','Data telah dihapus dari sistem');if(window[reload])window[reload]();}else notify('e','Gagal',r.message||'Terjadi kesalahan');}catch(e){notify('e','Error',e.message);}}
 
 // ── SCHEDULES ──────────────────────────────
 async function rdrSch(){
@@ -606,10 +694,10 @@ async function addSch(){if(!window._trn)window._trn=await gs('getTrainers');if(!
 async function editSch(id){var s=(window._sd||[]).find(x=>x.id===id);if(!s)return;opMd('Edit Jadwal',schForm(s),`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="ba" onclick="svSch('${id}')"><i class="fas fa-save"></i> Simpan</button>`);}
 async function svSch(id){
   var data={memberId:document.getElementById('sfMb')?.value,trainerId:document.getElementById('sfTr')?.value,date:document.getElementById('sfDt')?.value,timeStart:document.getElementById('sfTs')?.value,timeEnd:document.getElementById('sfTe')?.value,type:document.getElementById('sfTp')?.value,status:document.getElementById('sfSt')?.value||'Scheduled',notes:document.getElementById('sfNt')?.value||''};
-  if(!data.memberId||!data.trainerId||!data.date){toast('Member, trainer, dan tanggal wajib diisi','e');return;}
-  try{var r=id?await gs('updateSchedule',id,data):await gs('addSchedule',data);if(r.success){toast(id?'Jadwal diperbarui':'Jadwal ditambahkan','s');clMd();rdrSch();}else toast(r.message||'Gagal','e');}catch(e){toast(e.message,'e');}
+  if(!data.memberId||!data.trainerId||!data.date){notify('w','Validasi','Member, trainer, dan tanggal wajib diisi');return;}
+  try{var r=id?await gs('updateSchedule',id,data):await gs('addSchedule',data);if(r.success){notify('s',id?'Jadwal Diperbarui':'Jadwal Ditambahkan',id?'Jadwal berhasil diperbarui':'Jadwal berhasil ditambahkan & email notifikasi dikirim ke member');clMd();rdrSch();}else notify('e','Gagal',r.message||'Terjadi kesalahan');}catch(e){notify('e','Error',e.message);}
 }
-function delSch(id){opMd('Hapus Jadwal','<p style="color:#8899aa">Yakin hapus jadwal ini?</p>',`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="bs r" onclick="cnfDel('deleteSchedule','${id}','rdrSch')"><i class="fas fa-trash"></i> Hapus</button>`);}
+function delSch(id){confirmAct({icon:'fa-calendar-times',danger:true,title:'Hapus Jadwal',msg:'Yakin ingin menghapus jadwal ini? Tindakan tidak dapat dibatalkan.',label:'Ya, Hapus',onConfirm:async function(){try{var r=await gs('deleteSchedule',id);if(r.success){notify('s','Jadwal Dihapus','Jadwal berhasil dihapus dari sistem');rdrSch();}else notify('e','Gagal',r.message);}catch(e){notify('e','Error',e.message);}}});}
 
 // ── FINANCE ────────────────────────────────
 async function rdrFin(){
@@ -665,10 +753,10 @@ async function addFin(){if(!window._md)window._md=await gs('getMembers');opMd('T
 async function editFin(id){var f=(window._fd||[]).find(x=>x.id===id);if(!f)return;if(!window._md)window._md=await gs('getMembers');opMd('Edit Transaksi',finForm(f),`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="ba" onclick="svFin('${id}')"><i class="fas fa-save"></i> Simpan</button>`);}
 async function svFin(id){
   var data={type:document.getElementById('ffTp')?.value,category:document.getElementById('ffCt')?.value,description:document.getElementById('ffDs')?.value?.trim(),amount:document.getElementById('ffAm')?.value,date:document.getElementById('ffDt')?.value,memberId:document.getElementById('ffMb')?.value||null};
-  if(!data.description||!data.amount||!data.date){toast('Deskripsi, jumlah, dan tanggal wajib diisi','e');return;}
-  try{var r=id?await gs('updateFinance',id,data):await gs('addFinance',data);if(r.success){toast(id?'Transaksi diperbarui':'Transaksi ditambahkan','s');clMd();rdrFin();}else toast(r.message||'Gagal','e');}catch(e){toast(e.message,'e');}
+  if(!data.description||!data.amount||!data.date){notify('w','Validasi','Deskripsi, jumlah, dan tanggal wajib diisi');return;}
+  try{var r=id?await gs('updateFinance',id,data):await gs('addFinance',data);if(r.success){notify('s',id?'Transaksi Diperbarui':'Transaksi Ditambahkan',data.description);clMd();rdrFin();}else notify('e','Gagal',r.message||'Terjadi kesalahan');}catch(e){notify('e','Error',e.message);}
 }
-function delFin(id){opMd('Hapus Transaksi','<p style="color:#8899aa">Yakin hapus transaksi ini?</p>',`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="bs r" onclick="cnfDel('deleteFinance','${id}','rdrFin')"><i class="fas fa-trash"></i> Hapus</button>`);}
+function delFin(id){confirmAct({icon:'fa-file-invoice-dollar',danger:true,title:'Hapus Transaksi',msg:'Yakin ingin menghapus transaksi keuangan ini? Data tidak dapat dipulihkan.',label:'Ya, Hapus',onConfirm:async function(){try{var r=await gs('deleteFinance',id);if(r.success){notify('s','Transaksi Dihapus','Data keuangan berhasil dihapus');rdrFin();}else notify('e','Gagal',r.message);}catch(e){notify('e','Error',e.message);}}});}
 
 // ── PAYMENTS ───────────────────────────────
 async function rdrPay(){
@@ -709,10 +797,10 @@ async function addPay(){if(!window._md)window._md=await gs('getMembers');opMd('T
 async function editPay(id){var p=(window._pd||[]).find(x=>x.id===id);if(!p)return;if(!window._md)window._md=await gs('getMembers');opMd('Edit Pembayaran',payForm(p),`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="ba" onclick="svPay('${id}')"><i class="fas fa-save"></i> Simpan</button>`);}
 async function svPay(id){
   var data={memberId:document.getElementById('pfMb')?.value,amount:document.getElementById('pfAm')?.value,method:document.getElementById('pfMt')?.value,status:document.getElementById('pfSt')?.value,description:document.getElementById('pfDs')?.value?.trim()};
-  if(!data.memberId||!data.amount){toast('Member dan jumlah wajib diisi','e');return;}
-  try{var r=id?await gs('updatePayment',id,data):await gs('addPayment',data);if(r.success){toast(id?'Pembayaran diperbarui':'Pembayaran ditambahkan','s');clMd();rdrPay();}else toast(r.message||'Gagal','e');}catch(e){toast(e.message,'e');}
+  if(!data.memberId||!data.amount){notify('w','Validasi','Member dan jumlah pembayaran wajib diisi');return;}
+  try{var r=id?await gs('updatePayment',id,data):await gs('addPayment',data);if(r.success){notify('s',id?'Pembayaran Diperbarui':'Pembayaran Dicatat','Rp '+Number(data.amount).toLocaleString('id-ID')+' berhasil '+(id?'diperbarui':'dicatat'));clMd();rdrPay();}else notify('e','Gagal',r.message||'Terjadi kesalahan');}catch(e){notify('e','Error',e.message);}
 }
-function delPay(id){opMd('Hapus Pembayaran','<p style="color:#8899aa">Yakin hapus pembayaran ini?</p>',`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="bs r" onclick="cnfDel('deletePayment','${id}','rdrPay')"><i class="fas fa-trash"></i> Hapus</button>`);}
+function delPay(id){confirmAct({icon:'fa-receipt',danger:true,title:'Hapus Pembayaran',msg:'Yakin ingin menghapus catatan pembayaran ini?',label:'Ya, Hapus',onConfirm:async function(){try{var r=await gs('deletePayment',id);if(r.success){notify('s','Pembayaran Dihapus','Catatan pembayaran berhasil dihapus');rdrPay();}else notify('e','Gagal',r.message);}catch(e){notify('e','Error',e.message);}}});}
 
 // ── REPORTS ────────────────────────────────
 async function rdrRpt(period){
@@ -934,10 +1022,10 @@ function editUsr(id){var u=(window._ud||[]).find(x=>x.id===id);if(!u)return;opMd
 async function svUsr(id){
   var data={username:document.getElementById('ufUn')?.value?.trim(),password:document.getElementById('ufPw')?.value,name:document.getElementById('ufNm')?.value?.trim(),email:document.getElementById('ufEm')?.value?.trim(),phone:document.getElementById('ufPh')?.value?.trim(),role:document.getElementById('ufRl')?.value,active:document.getElementById('ufAc')?.value!=='false'};
   if(!data.name||(!id&&!data.username)){toast('Username dan nama wajib diisi','e');return;}
-  if(!id&&!data.password){toast('Password wajib diisi','e');return;}
-  try{var r=id?await gs('updateUser',id,data):await gs('addUser',data);if(r.success){toast(id?'Pengguna diperbarui':'Pengguna ditambahkan','s');clMd();rdrUsr();}else toast(r.message||'Gagal','e');}catch(e){toast(e.message,'e');}
+  if(!id&&!data.password){notify('w','Validasi','Password wajib diisi untuk pengguna baru');return;}
+  try{var r=id?await gs('updateUser',id,data):await gs('addUser',data);if(r.success){notify('s',id?'Pengguna Diperbarui':'Pengguna Ditambahkan','@'+(data.username||'')+' berhasil '+(id?'diperbarui':'ditambahkan'));clMd();rdrUsr();}else notify('e','Gagal',r.message||'Terjadi kesalahan');}catch(e){notify('e','Error',e.message);}
 }
-function delUsr(id,username){opMd('Hapus Pengguna',`<p style="color:#8899aa">Yakin hapus pengguna <strong style="color:#e8edf4">@${username}</strong>?</p>`,`<button class="bs" style="color:#8899aa" onclick="clMd()">Batal</button><button class="bs r" onclick="cnfDel('deleteUser','${id}','rdrUsr')"><i class="fas fa-trash"></i> Hapus</button>`);}
+function delUsr(id,username){confirmAct({icon:'fa-user-slash',danger:true,title:'Hapus Pengguna',msg:`Yakin ingin menghapus akun <strong>@${username}</strong>? Pengguna tidak dapat login setelah dihapus.`,label:'Ya, Hapus Akun',onConfirm:async function(){try{var r=await gs('deleteUser',id);if(r.success){notify('s','Akun Dihapus','@'+username+' berhasil dihapus dari sistem');rdrUsr();}else notify('e','Gagal',r.message);}catch(e){notify('e','Error',e.message);}}});}
 
 // ── SCAN MEMBER ────────────────────────────
 var _scanTab='recent';
